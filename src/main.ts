@@ -31,13 +31,67 @@ async function bootstrap() {
       AppModule,
     );
 
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3002',
+
+    // Canlı Admin Panel
+    'https://florea-admin-blpq5rirz-bi-buket-nese.vercel.app',
+  ];
+
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3002',
-    ],
+    origin: (
+      origin,
+      callback,
+    ) => {
+      // Postman, Swagger, server-to-server vb.
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (
+        allowedOrigins.includes(
+          origin,
+        )
+      ) {
+        callback(null, true);
+        return;
+      }
+
+      // Vercel preview deployment'ları
+      if (
+        origin.endsWith(
+          '.vercel.app',
+        )
+      ) {
+        callback(null, true);
+        return;
+      }
+
+      callback(
+        new Error(
+          `CORS tarafından izin verilmeyen origin: ${origin}`,
+        ),
+        false,
+      );
+    },
 
     credentials: true,
+
+    methods: [
+      'GET',
+      'POST',
+      'PUT',
+      'PATCH',
+      'DELETE',
+      'OPTIONS',
+    ],
+
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+    ],
   });
 
   app.useStaticAssets(
