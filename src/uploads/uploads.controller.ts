@@ -80,6 +80,23 @@ function imageFileFilter(
   );
 }
 
+/**
+ * Production'da Render backend adresini,
+ * local geliştirmede localhost'u kullanır.
+ *
+ * Render Environment Variables'a:
+ *
+ * API_BASE_URL=https://florea-backend-admin.onrender.com
+ *
+ * ekleyebilirsin.
+ */
+function getApiBaseUrl() {
+  return (
+    process.env.API_BASE_URL ||
+    'http://localhost:3001'
+  ).replace(/\/$/, '');
+}
+
 @ApiTags('Uploads')
 @ApiBearerAuth()
 @UseGuards(
@@ -145,7 +162,7 @@ export class UploadsController {
         file.filename,
 
       url:
-        `http://localhost:3001/uploads/products/${file.filename}`,
+        `${getApiBaseUrl()}/uploads/products/${file.filename}`,
     };
   }
 
@@ -207,7 +224,7 @@ export class UploadsController {
         file.filename,
 
       url:
-        `http://localhost:3001/uploads/balloons/${file.filename}`,
+        `${getApiBaseUrl()}/uploads/balloons/${file.filename}`,
     };
   }
 
@@ -269,7 +286,7 @@ export class UploadsController {
         file.filename,
 
       url:
-        `http://localhost:3001/uploads/collections/${file.filename}`,
+        `${getApiBaseUrl()}/uploads/collections/${file.filename}`,
     };
   }
 }
