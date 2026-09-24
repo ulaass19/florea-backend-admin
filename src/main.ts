@@ -32,8 +32,13 @@ async function bootstrap() {
     );
 
   const allowedOrigins = [
+    // Local
     'http://localhost:3000',
     'http://localhost:3002',
+
+    // Canlı site
+    'https://bibuketnese.com',
+    'https://www.bibuketnese.com',
 
     // Canlı Admin Panel
     'https://florea-admin-blpq5rirz-bi-buket-nese.vercel.app',
@@ -50,6 +55,7 @@ async function bootstrap() {
         return;
       }
 
+      // İzin verilen domainler
       if (
         allowedOrigins.includes(
           origin,
@@ -68,6 +74,10 @@ async function bootstrap() {
         callback(null, true);
         return;
       }
+
+      console.warn(
+        `❌ CORS blocked: ${origin}`,
+      );
 
       callback(
         new Error(
