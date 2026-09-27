@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Controller,
+  InternalServerErrorException,
   Post,
   UploadedFile,
   UseGuards,
@@ -19,33 +20,16 @@ import {
 } from '@nestjs/swagger';
 
 import {
-  diskStorage,
+  memoryStorage,
 } from 'multer';
 
 import {
-  extname,
-} from 'path';
+  v2 as cloudinary,
+} from 'cloudinary';
 
 import {
   JwtAuthGuard,
 } from '../auth/jwt-auth.guard';
-
-function createFileName(
-  originalName: string,
-) {
-  const extension =
-    extname(
-      originalName,
-    ).toLowerCase();
-
-  const uniqueName =
-    `${Date.now()}-${Math.round(
-      Math.random() *
-        1_000_000_000,
-    )}`;
-
-  return `${uniqueName}${extension}`;
-}
 
 const allowedTypes = [
   'image/jpeg',
@@ -80,22 +64,109 @@ function imageFileFilter(
   );
 }
 
-/**
- * Production'da Render backend adresini,
- * local geliştirmede localhost'u kullanır.
- *
- * Render Environment Variables'a:
- *
- * API_BASE_URL=https://florea-backend-admin.onrender.com
- *
- * ekleyebilirsin.
- */
-function getApiBaseUrl() {
-  return (
-    process.env.API_BASE_URL ||
-    'http://localhost:3001'
-  ).replace(/\/$/, '');
+function configureCloudinary() {
+  const cloudName =
+    process.env.CLOUDINARY_CLOUD_NAME;
+
+  const apiKey =
+    process.env.CLOUDINARY_API_KEY;
+
+  const apiSecret =
+    process.env.CLOUDINARY_API_SECRET;
+
+  if (
+    !cloudName ||
+    !apiKey ||
+    !apiSecret
+  ) {
+    throw new InternalServerErrorException(
+      'Cloudinary ayarları eksik.',
+    );
+  }
+
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+    secure: true,
+  });
 }
+
+async function uploadToCloudinary(
+  file: Express.Multer.File,
+  folder: string,
+) {
+  configureCloudinary();
+
+  return new Promise<{
+    filename: string;
+    url: string;
+  }>((resolve, reject) => {
+    const uploadStream =
+      cloudinary.uploader.upload_stream(
+        {
+          folder:
+            `florea/${folder}`,
+
+          resource_type:
+            'image',
+
+          unique_filename:
+            true,
+
+          overwrite:
+            false,
+        },
+
+        (error, result) => {
+          if (
+            error ||
+            !result
+          ) {
+            console.error(
+              'Cloudinary upload error:',
+              error,
+            );
+
+            reject(
+              new InternalServerErrorException(
+                'Görsel Cloudinary sistemine yüklenemedi.',
+              ),
+            );
+
+            return;
+          }
+
+          resolve({
+            filename:
+              result.public_id,
+
+            url:
+              result.secure_url,
+          });
+        },
+      );
+
+    uploadStream.end(
+      file.buffer,
+    );
+  });
+}
+
+const uploadOptions = {
+  storage:
+    memoryStorage(),
+
+  limits: {
+    fileSize:
+      5 *
+      1024 *
+      1024,
+  },
+
+  fileFilter:
+    imageFileFilter,
+};
 
 @ApiTags('Uploads')
 @ApiBearerAuth()
@@ -115,39 +186,10 @@ export class UploadsController {
   @UseInterceptors(
     FileInterceptor(
       'file',
-      {
-        storage:
-          diskStorage({
-            destination:
-              './uploads/products',
-
-            filename: (
-              _request,
-              file,
-              callback,
-            ) => {
-              callback(
-                null,
-                createFileName(
-                  file.originalname,
-                ),
-              );
-            },
-          }),
-
-        limits: {
-          fileSize:
-            5 *
-            1024 *
-            1024,
-        },
-
-        fileFilter:
-          imageFileFilter,
-      },
+      uploadOptions,
     ),
   )
-  uploadProductImage(
+  async uploadProductImage(
     @UploadedFile()
     file?: Express.Multer.File,
   ) {
@@ -157,13 +199,10 @@ export class UploadsController {
       );
     }
 
-    return {
-      filename:
-        file.filename,
-
-      url:
-        `${getApiBaseUrl()}/uploads/products/${file.filename}`,
-    };
+    return uploadToCloudinary(
+      file,
+      'products',
+    );
   }
 
   @Post('balloon-image')
@@ -177,39 +216,10 @@ export class UploadsController {
   @UseInterceptors(
     FileInterceptor(
       'file',
-      {
-        storage:
-          diskStorage({
-            destination:
-              './uploads/balloons',
-
-            filename: (
-              _request,
-              file,
-              callback,
-            ) => {
-              callback(
-                null,
-                createFileName(
-                  file.originalname,
-                ),
-              );
-            },
-          }),
-
-        limits: {
-          fileSize:
-            5 *
-            1024 *
-            1024,
-        },
-
-        fileFilter:
-          imageFileFilter,
-      },
+      uploadOptions,
     ),
   )
-  uploadBalloonImage(
+  async uploadBalloonImage(
     @UploadedFile()
     file?: Express.Multer.File,
   ) {
@@ -219,13 +229,10 @@ export class UploadsController {
       );
     }
 
-    return {
-      filename:
-        file.filename,
-
-      url:
-        `${getApiBaseUrl()}/uploads/balloons/${file.filename}`,
-    };
+    return uploadToCloudinary(
+      file,
+      'balloons',
+    );
   }
 
   @Post('collection-image')
@@ -239,39 +246,10 @@ export class UploadsController {
   @UseInterceptors(
     FileInterceptor(
       'file',
-      {
-        storage:
-          diskStorage({
-            destination:
-              './uploads/collections',
-
-            filename: (
-              _request,
-              file,
-              callback,
-            ) => {
-              callback(
-                null,
-                createFileName(
-                  file.originalname,
-                ),
-              );
-            },
-          }),
-
-        limits: {
-          fileSize:
-            5 *
-            1024 *
-            1024,
-        },
-
-        fileFilter:
-          imageFileFilter,
-      },
+      uploadOptions,
     ),
   )
-  uploadCollectionImage(
+  async uploadCollectionImage(
     @UploadedFile()
     file?: Express.Multer.File,
   ) {
@@ -281,12 +259,9 @@ export class UploadsController {
       );
     }
 
-    return {
-      filename:
-        file.filename,
-
-      url:
-        `${getApiBaseUrl()}/uploads/collections/${file.filename}`,
-    };
+    return uploadToCloudinary(
+      file,
+      'collections',
+    );
   }
 }
